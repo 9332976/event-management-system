@@ -1,127 +1,139 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useEvents } from '../../context/EventContext';
 import { useAuth } from '../../context/AuthContext';
 import { EventFilterPanel } from '../../components/events/EventFilterPanel';
 import { EventGrid } from '../../components/events/EventGrid';
 import { RegistrationModal } from '../../components/common/RegistrationModal';
-import { Sparkles, Calendar } from 'lucide-react';
+import { Calendar } from 'lucide-react';
+
+const DEFAULTS = {
+  search: '',
+  category: 'all',
+  date: 'all',
+  type: 'all',
+  availability: 'all',
+};
 
 export const EventsPage = () => {
-  const { events, registerForEvent } = useEvents();
+  const { events, registerForEvent, loading } = useEvents();
   const { currentUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
-  // Filters State initialized with query params if present
-  const [filters, setFilters] = useState({
-    search: searchParams.get('search') || '',
-    category: searchParams.get('category') || 'all',
-    date: searchParams.get('date') || 'all',
-    type: searchParams.get('type') || 'all',
-    availability: searchParams.get('availability') || 'all',
-  });
+  const [filters, setFilters] = useState(() => ({
+    search: searchParams.get('search') || DEFAULTS.search,
+    category: searchParams.get('category') || DEFAULTS.category,
+    date: searchParams.get('date') || DEFAULTS.date,
+    type: searchParams.get('type') || DEFAULTS.type,
+    availability: searchParams.get('availability') || DEFAULTS.availability,
+  }));
 
-  const [loading, setLoading] = useState(false);
-  const [selectedReg, setSelectedReg] = useState(null);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Sync category param if URL changes
+  // Keep filters in sync when the URL changes externally (navbar, home page links)
   useEffect(() => {
-    const cat = searchParams.get('category');
-    if (cat && cat !== filters.category) {
-      setFilters((prev) => ({ ...prev, category: cat }));
-    }
+    setFilters({
+      search: searchParams.get('search') || DEFAULTS.search,
+      category: searchParams.get('category') || DEFAULTS.category,
+      date: searchParams.get('date') || DEFAULTS.date,
+      type: searchParams.get('type') || DEFAULTS.type,
+      availability: searchParams.get('availability') || DEFAULTS.availability,
+    });
   }, [searchParams]);
 
   const handleFilterChange = (key, value) => {
-    setFilters((prev) => {
-      const updated = { ...prev, [key]: value };
-      // Update URL search params
-      if (key === 'category') {
-        if (value === 'all') searchParams.delete('category');
-        else searchParams.set('category', value);
-        setSearchParams(searchParams);
-      }
-      return updated;
+    const updated = { ...filters, [key]: value };
+    setFilters(updated);
+
+    const next = {};
+    Object.entries(updated).forEach(([k, v]) => {
+      if (v && v !== 'all' && v !== DEFAULTS[k]) next[k] = v;
     });
+    setSearchParams(next, { replace: true });
   };
 
-  const handleResetFilters = () => {
-    setFilters({
-      search: '',
-      category: 'all',
-      date: 'all',
-      type: 'all',
-      availability: 'all',
-    });
-    setSearchParams({});
-  };
+  const handleResetFilters = useCallback(() => {
+    setFilters(DEFAULTS);
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
 
-  // Filtered Events Calculation
   const filteredEvents = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(startOfToday.getTime() + 86400000);
+    const endOfWeek = new Date(startOfToday.getTime() + 7 * 86400000);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
     return events.filter((event) => {
-      // 1. Search filter (title, description, tags, venue, organizer)
-      if (filters.search.trim() !== '') {
-        const query = filters.search.toLowerCase();
-        const matchesTitle = event.title.toLowerCase().includes(query);
-        const matchesDesc = event.description.toLowerCase().includes(query);
-        const matchesVenue = event.venue.toLowerCase().includes(query);
-        const matchesOrg = event.organizer?.name?.toLowerCase().includes(query) || event.organizer?.club?.toLowerCase().includes(query);
-        const matchesTags = event.tags?.some((t) => t.toLowerCase().includes(query));
-
-        if (!matchesTitle && !matchesDesc && !matchesVenue && !matchesOrg && !matchesTags) {
-          return false;
-        }
+      // 1. Search: title, description, venue, department, tags
+      if (filters.search.trim()) {
+        const q = filters.search.trim().toLowerCase();
+        const haystack = [
+          event.title,
+          event.description,
+          event.venue,
+          event.department,
+          event.category,
+          ...(event.tags || []),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
       }
 
-      // 2. Category filter
-      if (filters.category !== 'all' && event.category !== filters.category) {
-        return false;
-      }
+      // 2. Category
+      if (filters.category !== 'all' && event.category !== filters.category) return false;
 
-      // 3. Type / Mode filter
-      if (filters.type !== 'all' && event.type !== filters.type) {
-        return false;
-      }
+      // 3. Mode
+      if (filters.type !== 'all' && event.type !== filters.type) return false;
 
-      // 4. Availability filter
+      // 4. Seat availability
       if (filters.availability !== 'all') {
         if (filters.availability === 'Available' && event.status !== 'Available') return false;
         if (filters.availability === 'Almost Full' && event.status !== 'Almost Full') return false;
-        if (filters.availability === 'Registration Closed' && event.status !== 'Registration Closed' && event.seatsLeft > 0) return false;
+        if (filters.availability === 'Registration Closed' && event.seatsLeft > 0) return false;
       }
 
-      // 5. Date filter (Mock logic based on event date string)
+      // 5. Date window
       if (filters.date !== 'all') {
         const evtDate = new Date(event.date);
-        const now = new Date();
-
-        if (filters.date === 'today') {
-          // Compare day, month, year
-          if (evtDate.toDateString() !== now.toDateString()) return false;
-        } else if (filters.date === 'this-month') {
-          if (evtDate.getMonth() !== now.getMonth() && evtDate.getMonth() !== 8) { // 8 is Sep in 0-indexed
-            // Keep matching
-          }
-        }
+        if (Number.isNaN(evtDate.getTime())) return true;
+        if (filters.date === 'today' && (evtDate < startOfToday || evtDate >= endOfToday)) return false;
+        if (filters.date === 'this-week' && (evtDate < startOfToday || evtDate >= endOfWeek)) return false;
+        if (filters.date === 'this-month' && (evtDate < startOfToday || evtDate >= endOfMonth)) return false;
+        if (filters.date === 'upcoming' && evtDate < startOfToday) return false;
       }
 
       return true;
     });
   }, [events, filters]);
 
+  // Opening the modal collects preferences first; nothing is posted yet.
   const handleRegisterClick = (event) => {
-    const reg = registerForEvent(event.id, currentUser);
-    if (reg) {
-      setSelectedReg(reg);
-      setModalOpen(true);
+    if (!currentUser) {
+      navigate('/login?redirect=/events');
+      return;
+    }
+    setSelectedEvent(event);
+    setModalOpen(true);
+  };
+
+  const handleSubmitApplication = async (formData) => {
+    if (!selectedEvent) return null;
+    setIsSubmitting(true);
+    try {
+      return await registerForEvent(selectedEvent.id, currentUser, formData);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
-      
-      {/* Header Banner */}
       <div className="text-center max-w-2xl mx-auto space-y-2">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-bold">
           <Calendar className="w-3.5 h-3.5" />
@@ -135,7 +147,6 @@ export const EventsPage = () => {
         </p>
       </div>
 
-      {/* Filter Panel Component */}
       <EventFilterPanel
         filters={filters}
         onFilterChange={handleFilterChange}
@@ -143,7 +154,6 @@ export const EventsPage = () => {
         totalResults={filteredEvents.length}
       />
 
-      {/* Events Grid */}
       <EventGrid
         events={filteredEvents}
         loading={loading}
@@ -151,13 +161,13 @@ export const EventsPage = () => {
         onResetFilters={handleResetFilters}
       />
 
-      {/* Registration Modal */}
       <RegistrationModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        registration={selectedReg}
+        onSubmitApplication={handleSubmitApplication}
+        eventPrice={selectedEvent?.price}
+        isSubmitting={isSubmitting}
       />
-
     </div>
   );
 };

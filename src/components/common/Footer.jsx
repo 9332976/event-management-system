@@ -40,7 +40,7 @@ export const Footer = () => {
             </Link>
             
             <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
-              Discover. Participate. Connect. Making campus life vibrant, structured, and universally accessible for students, club organizers, and university faculty.
+              Discover. Participate. Connect. Making campus life vibrant, structured, and universally accessible for students and university administration.
             </p>
 
             {/* Newsletter */}
@@ -116,18 +116,8 @@ export const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/organizer/dashboard" className="hover:text-indigo-400 transition-colors">
-                  Organizer Dashboard
-                </Link>
-              </li>
-              <li>
-                <Link to="/organizer/create-event" className="hover:text-indigo-400 transition-colors">
-                  Host an Event
-                </Link>
-              </li>
-              <li>
-                <Link to="/admin/dashboard" className="hover:text-indigo-400 transition-colors">
-                  Admin Console
+                <Link to="/login" className="hover:text-indigo-400 transition-colors">
+                  Admin Sign In
                 </Link>
               </li>
               <li>

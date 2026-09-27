@@ -1,517 +1,360 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { mockEvents } from '../data/mockEvents';
-import { mockCategories } from '../data/mockCategories';
-import { mockNotifications } from '../data/mockNotifications';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { api } from '../api/client';
+import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 
 const EventContext = createContext();
 
-// Sample initial registrations for demo student (Debjit Banerjee)
-const initialRegistrations = [
-  {
-    registrationId: "CC-2026-8F92A",
-    eventId: "evt-001",
-    eventTitle: "InnovateX 2026: 36-Hour National Hackathon",
-    category: "hackathon",
-    eventDate: "2026-09-15",
-    eventTime: "09:00 AM",
-    venue: "Main Auditorium & Computing Lab 4",
-    banner: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1200&auto=format&fit=crop&q=80",
-    studentName: "Debjit Banerjee",
-    studentEmail: "debjit.banerjee@campus.edu",
-    studentId: "2023-CS-084",
-    department: "Computer Science & Engineering",
-    ticketTier: "VIP Hacker Pass",
-    seating: "Main Computing Lab - Pod A",
-    dietary: "Vegetarian",
-    specialRequirements: "Requires 24/7 power point for laptop",
-    registeredAt: "2026-08-20T10:30:00Z",
-    status: "Confirmed",
-    attendance: "Pending",
-    teamName: "Neural Innovators",
-    teamMembers: ["Debjit Banerjee", "Priya Sundaram", "Arjun Nambiar"]
-  },
-  {
-    registrationId: "CC-2026-3B17K",
-    eventId: "evt-003",
-    eventTitle: "Applied Generative AI & LLM Systems Workshop",
-    category: "workshop",
-    eventDate: "2026-09-05",
-    eventTime: "10:00 AM",
-    venue: "Seminar Hall 2 & Virtual Stream",
-    banner: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&auto=format&fit=crop&q=80",
-    studentName: "Debjit Banerjee",
-    studentEmail: "debjit.banerjee@campus.edu",
-    studentId: "2023-CS-084",
-    department: "Computer Science & Engineering",
-    ticketTier: "Masterclass Delegate",
-    seating: "Tiered Auditorium Row 2",
-    dietary: "Non-Veg",
-    specialRequirements: "Pre-provisioned GPU sandbox",
-    registeredAt: "2026-08-22T14:15:00Z",
-    status: "Confirmed",
-    attendance: "Present",
-    teamName: "Solo Participant",
-    teamMembers: ["Debjit Banerjee"]
-  }
-];
+const relativeTime = (iso) => {
+  if (!iso) return 'Just now';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} mins ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`;
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
 
-// Initial mock attendees roster for organizers
-const initialAttendees = [
-  {
-    id: "att-001",
-    registrationId: "CC-2026-8F92A",
-    eventId: "evt-001",
-    studentName: "Debjit Roy",
-    studentId: "2023-CS-084",
-    department: "Computer Science",
-    registeredDate: "Aug 20, 2026",
-    status: "Approved",
-    attendance: "Present"
-  },
-  {
-    id: "att-002",
-    registrationId: "CC-2026-9A101",
-    eventId: "evt-001",
-    studentName: "Priya Sundaram",
-    studentId: "2023-EC-112",
-    department: "Electronics",
-    registeredDate: "Aug 21, 2026",
-    status: "Approved",
-    attendance: "Present"
-  },
-  {
-    id: "att-003",
-    registrationId: "CC-2026-7B442",
-    eventId: "evt-001",
-    studentName: "Rohan Mukherjee",
-    studentId: "2022-ME-045",
-    department: "Mechanical",
-    registeredDate: "Aug 22, 2026",
-    status: "Approved",
-    attendance: "Absent"
-  },
-  {
-    id: "att-004",
-    registrationId: "CC-2026-4C590",
-    eventId: "evt-001",
-    studentName: "Sneha Patel",
-    studentId: "2024-BT-029",
-    department: "Biotechnology",
-    registeredDate: "Aug 23, 2026",
-    status: "Approved",
-    attendance: "Present"
-  },
-  {
-    id: "att-005",
-    registrationId: "CC-2026-2D881",
-    eventId: "evt-001",
-    studentName: "Arjun Nambiar",
-    studentId: "2023-CS-140",
-    department: "Computer Science",
-    registeredDate: "Aug 24, 2026",
-    status: "Approved",
-    attendance: "Present"
-  },
-  {
-    id: "att-006",
-    registrationId: "CC-2026-5E119",
-    eventId: "evt-001",
-    studentName: "Kavya Ramesh",
-    studentId: "2023-IT-055",
-    department: "Information Tech",
-    registeredDate: "Aug 24, 2026",
-    status: "Pending",
-    attendance: "Absent"
-  }
-];
+const normalizeNotifications = (list) =>
+  (list || []).map((n) => ({ ...n, timestamp: relativeTime(n.createdAt) }));
+
+const normalizeRegistrations = (list) =>
+  (list || []).map((r) => ({
+    ...r,
+    eventId: r.event,
+    status: r.status || 'Pending',
+    rejectReason: r.rejectReason || '',
+  }));
+
+const mapAttendee = (r) => ({
+  id: r.registrationId,
+  registrationId: r.registrationId,
+  eventId: r.eventId,
+  eventTitle: r.eventTitle,
+  studentName: r.studentName,
+  studentId: r.studentId,
+  department: r.department,
+  registeredDate: r.registeredDate,
+  status: r.status,
+  attendance: r.attendance,
+});
 
 export const EventProvider = ({ children }) => {
+  const { currentUser, currentRole } = useAuth();
   const { showToast } = useToast();
 
-  // 1. Events State
-  const [events, setEvents] = useState(() => {
-    const saved = localStorage.getItem('cc_events');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error parsing stored events', e);
-      }
-    }
-    return mockEvents;
-  });
+  const [events, setEvents] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [registrations, setRegistrations] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [attendees, setAttendees] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // 2. Categories State
-  const [categories, setCategories] = useState(() => {
-    const saved = localStorage.getItem('cc_categories');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error parsing stored categories', e);
-      }
-    }
-    return mockCategories;
-  });
+  const roleRef = useRef(currentRole);
+  const userRef = useRef(currentUser);
+  roleRef.current = currentRole;
+  userRef.current = currentUser;
 
-  // 3. Registrations State
-  const [registrations, setRegistrations] = useState(() => {
-    const saved = localStorage.getItem('cc_registrations');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error parsing stored registrations', e);
-      }
-    }
-    return initialRegistrations;
-  });
-
-  // 4. Bookmarks State
-  const [bookmarks, setBookmarks] = useState(() => {
-    const saved = localStorage.getItem('cc_bookmarks');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error parsing stored bookmarks', e);
-      }
-    }
-    return ["evt-001", "evt-002", "evt-006"];
-  });
-
-  // 5. Notifications State
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem('cc_notifications');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error parsing stored notifications', e);
-      }
-    }
-    return mockNotifications;
-  });
-
-  // 6. Attendees State for Organizer Attendance
-  const [attendees, setAttendees] = useState(() => {
-    const saved = localStorage.getItem('cc_attendees');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error parsing stored attendees', e);
-      }
-    }
-    return initialAttendees;
-  });
-
-  // Sync to localStorage
-  useEffect(() => {
-    localStorage.setItem('cc_events', JSON.stringify(events));
-  }, [events]);
-
-  useEffect(() => {
-    localStorage.setItem('cc_categories', JSON.stringify(categories));
-  }, [categories]);
-
-  useEffect(() => {
-    localStorage.setItem('cc_registrations', JSON.stringify(registrations));
-  }, [registrations]);
-
-  useEffect(() => {
-    localStorage.setItem('cc_bookmarks', JSON.stringify(bookmarks));
-  }, [bookmarks]);
-
-  useEffect(() => {
-    localStorage.setItem('cc_notifications', JSON.stringify(notifications));
-  }, [notifications]);
-
-  useEffect(() => {
-    localStorage.setItem('cc_attendees', JSON.stringify(attendees));
-  }, [attendees]);
-
-  // Check if an event is bookmarked
-  const isBookmarked = (eventId) => bookmarks.includes(eventId);
-
-  // Toggle Bookmark
-  const toggleBookmark = (eventId) => {
-    setBookmarks((prev) => {
-      const exists = prev.includes(eventId);
-      if (exists) {
-        showToast('Event removed from your saved bookmarks', 'info');
-        return prev.filter((id) => id !== eventId);
+  const loadEvents = useCallback(async () => {
+    try {
+      const role = roleRef.current;
+      if (role === 'admin') {
+        const data = await api.get('/events?limit=500&approvalStatus=all');
+        setEvents(data.events || []);
       } else {
-        showToast('Event saved to your bookmarks!', 'success');
-        return [...prev, eventId];
+        const data = await api.get('/events?limit=500');
+        setEvents(data.events || []);
       }
-    });
-  };
+    } catch (error) {
+      console.error('Failed to load events:', error.message);
+    }
+  }, []);
 
-  // Check if registered
-  const getRegistration = (eventId) => {
-    return registrations.find((r) => r.eventId === eventId && r.status !== 'Cancelled');
-  };
+  const loadPersonal = useCallback(async () => {
+    const role = roleRef.current;
+    if (!userRef.current || role === 'guest') {
+      setRegistrations([]);
+      setNotifications([]);
+      setAttendees([]);
+      setAnalytics(null);
+      return;
+    }
+    try {
+      const tasks = [];
+      if (role === 'admin') {
+        tasks.push(api.get('/registrations?limit=500').then((d) => setRegistrations(normalizeRegistrations(d.registrations))));
+      } else {
+        tasks.push(api.get('/registrations/me').then((d) => setRegistrations(normalizeRegistrations(d.registrations))));
+      }
 
-  // Register for event
-  const registerForEvent = (eventId, studentUser, customDetails = {}) => {
-    const event = events.find((e) => e.id === eventId);
-    if (!event) return null;
+      tasks.push(api.get('/notifications').then((d) => setNotifications(normalizeNotifications(d.notifications))));
 
-    // Check if already registered
+      if (role === 'admin') {
+        tasks.push(api.get('/registrations/organizer-roster').then((d) => setAttendees((d.attendees || []).map(mapAttendee))));
+        tasks.push(api.get('/analytics/admin').then((d) => setAnalytics(d.analytics)));
+      } else {
+        setAttendees([]);
+      }
+
+      await Promise.all(tasks);
+    } catch (error) {
+      console.error('Failed to load personal data:', error.message);
+    }
+  }, []);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const data = await api.get('/categories');
+      setCategories(data.categories || []);
+    } catch (error) {
+      console.error('Failed to load categories:', error.message);
+    }
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([loadEvents(), loadCategories(), loadPersonal()]);
+    setLoading(false);
+  }, [loadEvents, loadCategories, loadPersonal]);
+
+  useEffect(() => {
+    loadAll();
+  }, [currentUser?.id, currentRole, loadAll]);
+
+  // --- Registrations ---
+  // Only live applications block a new one. Rejected/cancelled rows stay visible
+  // in history but must not prevent the student from applying again.
+  const getRegistration = (eventId) =>
+    registrations.find((r) => r.eventId === eventId && ['Pending', 'Approved'].includes(r.status));
+
+  const registerForEvent = async (eventId, studentUser, customDetails = {}) => {
     const existing = getRegistration(eventId);
     if (existing) {
-      showToast('You are already registered for this event.', 'warning');
+      showToast('You have already applied for this event.', 'warning');
       return existing;
     }
-
-    if (event.seatsLeft <= 0) {
-      showToast('Sorry, this event is already fully booked.', 'error');
+    try {
+      const data = await api.post(`/registrations/events/${eventId}/register`, customDetails);
+      const reg = { ...data.registration, eventId: data.registration.event };
+      setRegistrations((prev) => [reg, ...prev]);
+      const autoApproved = reg.status === 'Approved';
+      setNotifications((prev) => [{
+        id: `local-${Date.now()}`,
+        title: autoApproved ? 'Registration Confirmed!' : 'Application Submitted',
+        message: autoApproved
+          ? `You are confirmed for ${reg.eventTitle}. Your Ticket Pass: ${reg.registrationId}`
+          : `Your application for ${reg.eventTitle} was sent for review. Application ID: ${reg.registrationId}`,
+        timestamp: 'Just now',
+        category: 'registration',
+        read: false,
+        link: '/student/dashboard',
+      }, ...prev]);
+      showToast(
+        autoApproved
+          ? `Registration Successful! Pass ID: ${reg.registrationId}`
+          : `Application submitted for review. ID: ${reg.registrationId}`,
+        'success'
+      );
+      loadEvents();
+      return reg;
+    } catch (error) {
+      if (error.statusCode === 400 && /already (registered|applied)/i.test(error.message)) {
+        const existingReg = getRegistration(eventId);
+        if (existingReg) {
+          showToast('You have already applied for this event.', 'warning');
+          return existingReg;
+        }
+      }
+      if (error.statusCode === 400 && /fully booked/i.test(error.message)) {
+        showToast('Sorry, this event is already fully booked.', 'error');
+        return null;
+      }
+      showToast(error.message || 'Registration failed.', 'error');
       return null;
     }
-
-    // Generate unique Pass ID
-    const randomHex = Math.random().toString(36).substring(2, 7).toUpperCase();
-    const regId = `CC-2026-${randomHex}`;
-
-    const newReg = {
-      registrationId: regId,
-      eventId: event.id,
-      eventTitle: event.title,
-      category: event.category,
-      eventDate: event.date,
-      eventTime: event.time,
-      venue: event.venue,
-      banner: event.banner,
-      studentName: studentUser?.name || 'Debjit Banerjee',
-      studentEmail: studentUser?.email || 'debjit.banerjee@campus.edu',
-      studentId: studentUser?.studentId || '2023-CS-084',
-      department: studentUser?.department || 'Computer Science & Engineering',
-      ticketTier: customDetails.ticketTier || 'VIP All-Access Pass',
-      seating: customDetails.seating || 'Section A - Main Auditorium',
-      dietary: customDetails.dietary || 'Vegetarian',
-      specialRequirements: customDetails.specialRequirements || 'Standard Delegate Kit',
-      discountCode: customDetails.discountCode || null,
-      registeredAt: new Date().toISOString(),
-      status: 'Confirmed',
-      attendance: 'Pending',
-      teamName: customDetails.teamName || 'Solo Participant',
-      teamMembers: customDetails.teamMembers || [studentUser?.name || 'Debjit Banerjee']
-    };
-
-    // Update registration list
-    setRegistrations((prev) => [newReg, ...prev]);
-
-    // Decrement seatsLeft and increment registeredCount in event
-    setEvents((prev) =>
-      prev.map((e) => {
-        if (e.id === eventId) {
-          const newRegistered = e.registeredCount + 1;
-          const newSeatsLeft = Math.max(0, e.seatsLeft - 1);
-          let newStatus = e.status;
-          if (newSeatsLeft === 0) newStatus = 'Registration Closed';
-          else if (newSeatsLeft <= 10) newStatus = 'Almost Full';
-          return {
-            ...e,
-            registeredCount: newRegistered,
-            seatsLeft: newSeatsLeft,
-            status: newStatus
-          };
-        }
-        return e;
-      })
-    );
-
-    // Add to attendees list for organizers
-    const newAttendee = {
-      id: `att-${Date.now()}`,
-      registrationId: regId,
-      eventId: event.id,
-      studentName: studentUser?.name || 'Debjit Roy',
-      studentId: studentUser?.studentId || '2023-CS-084',
-      department: studentUser?.department || 'Computer Science',
-      registeredDate: 'Today',
-      status: 'Approved',
-      attendance: 'Pending'
-    };
-    setAttendees((prev) => [newAttendee, ...prev]);
-
-    // Create Notification
-    const newNotif = {
-      id: `notif-${Date.now()}`,
-      title: 'Registration Confirmed! 🎉',
-      message: `You are confirmed for ${event.title}. Ticket Pass: ${regId}`,
-      timestamp: 'Just now',
-      category: 'registration',
-      read: false,
-      link: '/student/registrations'
-    };
-    setNotifications((prev) => [newNotif, ...prev]);
-
-    showToast(`Registration Successful! Pass ID: ${regId}`, 'success');
-    return newReg;
   };
 
-  // Cancel Registration
-  const cancelRegistration = (registrationId) => {
-    const reg = registrations.find((r) => r.registrationId === registrationId);
-    if (!reg) return;
-
-    setRegistrations((prev) =>
-      prev.map((r) => (r.registrationId === registrationId ? { ...r, status: 'Cancelled' } : r))
-    );
-
-    // Free up 1 seat in the event
-    setEvents((prev) =>
-      prev.map((e) => {
-        if (e.id === reg.eventId) {
-          const newSeats = e.seatsLeft + 1;
-          return {
-            ...e,
-            seatsLeft: newSeats,
-            registeredCount: Math.max(0, e.registeredCount - 1),
-            status: newSeats > 0 ? (newSeats <= 10 ? 'Almost Full' : 'Available') : e.status
-          };
-        }
-        return e;
-      })
-    );
-
-    // Remove from active attendees
-    setAttendees((prev) =>
-      prev.map((a) => (a.registrationId === registrationId ? { ...a, status: 'Cancelled' } : a))
-    );
-
-    showToast('Registration has been successfully cancelled.', 'info');
+  // --- Application review (Admin) ---
+  const reviewRegistration = async (registrationId, decision, reason = '', options = {}) => {
+    try {
+      const data = await api.patch(`/registrations/${registrationId}/review`, {
+        decision,
+        rejectReason: decision === 'reject' ? reason : '',
+        ...options,
+      });
+      const reg = data.registration;
+      setRegistrations((prev) =>
+        prev.map((r) => (r.registrationId === registrationId ? { ...r, ...reg } : r))
+      );
+      setAttendees((prev) =>
+        prev.map((a) => (a.registrationId === registrationId ? { ...a, ...reg } : a))
+      );
+      showToast(data.message || `Application ${decision === 'approve' ? 'approved' : 'rejected'}.`, 'success');
+      loadEvents();
+      loadPersonal();
+      return reg;
+    } catch (error) {
+      showToast(error.message || 'Could not review application.', 'error');
+      return null;
+    }
   };
 
-  // Create Event (Organizer / Admin)
-  const createEvent = (eventData, organizerUser) => {
-    const newId = `evt-${String(events.length + 1).padStart(3, '0')}`;
-    const categoryObj = categories.find((c) => c.slug === eventData.category) || categories[0];
-
-    const newEvent = {
-      id: newId,
-      title: eventData.title,
-      slug: eventData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-      category: eventData.category,
-      categoryLabel: categoryObj?.name || 'General',
-      banner: eventData.banner || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&auto=format&fit=crop&q=80',
-      date: eventData.date,
-      formattedDate: new Date(eventData.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      time: eventData.time || '10:00 AM',
-      endTime: eventData.endTime || '04:00 PM',
-      venue: eventData.venue || 'Campus Central Auditorium',
-      type: eventData.type || 'Offline',
-      organizer: {
-        name: organizerUser?.name || 'Prof. Ananya Sharma',
-        club: eventData.department || 'Campus Department',
-        avatar: organizerUser?.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-        email: organizerUser?.email || 'organizer@campus.edu',
-        phone: organizerUser?.phone || '+91 98123 76540'
-      },
-      department: eventData.department || 'Engineering',
-      maxParticipants: Number(eventData.maxParticipants) || 100,
-      registeredCount: 0,
-      seatsLeft: Number(eventData.maxParticipants) || 100,
-      status: 'Available',
-      approvalStatus: 'Approved',
-      registrationDeadline: eventData.registrationDeadline || eventData.date,
-      isFeatured: eventData.isFeatured || false,
-      price: eventData.price || 'Free',
-      tags: eventData.tags || ['Campus', 'Event'],
-      prizes: eventData.prizes || 'Certificates & Mementos',
-      description: eventData.description || 'Exciting college event open to all students.',
-      eligibility: eventData.eligibility || 'Open to all enrolled students.',
-      rules: eventData.rules && eventData.rules.length > 0 ? eventData.rules : [
-        'College ID card is mandatory.',
-        'Follow campus conduct regulations.'
-      ],
-      schedule: eventData.schedule && eventData.schedule.length > 0 ? eventData.schedule : [
-        { time: eventData.time || '10:00 AM', title: 'Registration & Inauguration', desc: 'Opening address.' },
-        { time: '11:30 AM', title: 'Main Sessions', desc: 'Core activities.' },
-        { time: eventData.endTime || '04:00 PM', title: 'Concluding Remarks', desc: 'Certificates distribution.' }
-      ]
-    };
-
-    setEvents((prev) => [newEvent, ...prev]);
-
-    // Increment count in category
-    setCategories((prev) =>
-      prev.map((c) => (c.slug === eventData.category ? { ...c, count: (c.count || 0) + 1 } : c))
-    );
-
-    showToast(`Event "${newEvent.title}" published successfully!`, 'success');
-    return newEvent;
+  const cancelRegistration = async (registrationId) => {
+    try {
+      const data = await api.delete(`/registrations/${registrationId}`);
+      setRegistrations((prev) =>
+        prev.map((r) => (r.registrationId === registrationId ? { ...r, status: 'Cancelled' } : r))
+      );
+      setAttendees((prev) =>
+        prev.map((a) => (a.registrationId === registrationId ? { ...a, status: 'Cancelled' } : a))
+      );
+      showToast(data.message || 'Registration has been successfully cancelled.', 'info');
+      loadEvents();
+      return data;
+    } catch (error) {
+      showToast(error.message || 'Could not cancel registration.', 'error');
+      return null;
+    }
   };
 
-  // Update Event
-  const updateEvent = (eventId, updatedFields) => {
-    setEvents((prev) =>
-      prev.map((e) => {
-        if (e.id === eventId) {
-          return { ...e, ...updatedFields };
-        }
-        return e;
-      })
-    );
-    showToast('Event details updated successfully!', 'success');
+  // --- Events CRUD ---
+  const createEvent = async (eventData) => {
+    try {
+      const data = await api.post('/events', eventData);
+      showToast(data.message || `Event "${data.event?.title || ''}" published successfully!`, 'success');
+      loadEvents();
+      return data.event;
+    } catch (error) {
+      showToast(error.message || 'Could not create event.', 'error');
+      return null;
+    }
   };
 
-  // Delete Event
-  const deleteEvent = (eventId) => {
-    const event = events.find((e) => e.id === eventId);
-    setEvents((prev) => prev.filter((e) => e.id !== eventId));
-    setBookmarks((prev) => prev.filter((id) => id !== eventId));
-    showToast(`Event "${event?.title || eventId}" deleted.`, 'info');
+  const updateEvent = async (eventId, updatedFields) => {
+    try {
+      const data = await api.patch(`/events/${eventId}`, updatedFields);
+      setEvents((prev) => prev.map((e) => (e.id === eventId ? data.event : e)));
+      showToast('Event details updated successfully!', 'success');
+      return data.event;
+    } catch (error) {
+      showToast(error.message || 'Could not update event.', 'error');
+      return null;
+    }
   };
 
-  // Mark Attendance (Present / Absent)
-  const setAttendeeAttendance = (attendeeId, attendanceStatus) => {
-    setAttendees((prev) =>
-      prev.map((att) => (att.id === attendeeId ? { ...att, attendance: attendanceStatus } : att))
-    );
-    showToast(`Attendance marked as ${attendanceStatus}.`, 'success');
+  const deleteEvent = async (eventId) => {
+    try {
+      const data = await api.delete(`/events/${eventId}`);
+      setEvents((prev) => prev.filter((e) => e.id !== eventId));
+      showToast(data.message || 'Event deleted.', 'info');
+      return data;
+    } catch (error) {
+      showToast(error.message || 'Could not delete event.', 'error');
+      return null;
+    }
   };
 
-  // Notification Operations
-  const markNotificationRead = (id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+  // --- Payments (Admin) ---
+  const setRegistrationPayment = async (registrationId, paymentStatus, extra = {}) => {
+    try {
+      const data = await api.patch(`/registrations/${registrationId}/payment`, { paymentStatus, ...extra });
+      const reg = data.registration;
+      setRegistrations((prev) =>
+        prev.map((r) => (r.registrationId === registrationId ? { ...r, ...reg } : r))
+      );
+      showToast(data.message || `Payment marked as ${paymentStatus}.`, 'success');
+      loadEvents();
+      return reg;
+    } catch (error) {
+      showToast(error.message || 'Could not update payment.', 'error');
+      return null;
+    }
   };
 
-  const markAllNotificationsRead = () => {
+  // --- Attendance ---
+  const setAttendeeAttendance = async (attendeeId, attendanceStatus) => {
+    try {
+      const data = await api.patch(`/registrations/${attendeeId}/attendance`, { attendance: attendanceStatus });
+      setAttendees((prev) =>
+        prev.map((att) => (att.id === attendeeId ? { ...att, attendance: attendanceStatus } : att))
+      );
+      showToast(`Attendance marked as ${attendanceStatus}.`, 'success');
+      return data;
+    } catch (error) {
+      showToast(error.message || 'Could not update attendance.', 'error');
+      return null;
+    }
+  };
+
+  // --- Notifications ---
+  const markNotificationRead = async (id) => {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    try {
+      await api.patch(`/notifications/${id}/read`);
+    } catch (error) {
+      console.error('markNotificationRead failed:', error.message);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    showToast('All notifications marked as read', 'info');
+    try {
+      await api.patch('/notifications/read-all');
+      showToast('All notifications marked as read', 'info');
+    } catch (error) {
+      console.error('markAllNotificationsRead failed:', error.message);
+    }
   };
 
-  const clearNotifications = () => {
+  const clearNotifications = async () => {
     setNotifications([]);
-    showToast('Notifications cleared', 'info');
+    try {
+      await api.delete('/notifications');
+      showToast('Notifications cleared', 'info');
+    } catch (error) {
+      console.error('clearNotifications failed:', error.message);
+    }
   };
 
-  // Category Operations (Admin)
-  const addCategory = (categoryData) => {
-    const slug = categoryData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const newCat = {
-      id: slug,
-      slug,
-      name: categoryData.name,
-      description: categoryData.description || 'Campus event category.',
-      icon: categoryData.icon || 'Sparkles',
-      color: categoryData.color || 'from-indigo-500 to-purple-600',
-      badgeBg: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800',
-      count: 0
-    };
-    setCategories((prev) => [...prev, newCat]);
-    showToast(`Category "${newCat.name}" added successfully!`, 'success');
+  // --- Categories (Admin) ---
+  const addCategory = async (categoryData) => {
+    try {
+      const data = await api.post('/categories', categoryData);
+      showToast(data.message || `Category "${data.category?.name || ''}" added successfully!`, 'success');
+      await loadCategories();
+      return data.category;
+    } catch (error) {
+      showToast(error.message || 'Could not add category.', 'error');
+      return null;
+    }
   };
 
-  const deleteCategory = (categorySlug) => {
-    setCategories((prev) => prev.filter((c) => c.slug !== categorySlug));
-    showToast('Category deleted.', 'info');
+  const updateCategory = async (categorySlug, updates) => {
+    try {
+      const data = await api.patch(`/categories/${categorySlug}`, updates);
+      showToast(data.message || 'Category updated.', 'success');
+      await loadCategories();
+      return data.category;
+    } catch (error) {
+      showToast(error.message || 'Could not update category.', 'error');
+      return null;
+    }
+  };
+
+  const deleteCategory = async (categorySlug) => {
+    try {
+      const data = await api.delete(`/categories/${categorySlug}`);
+      setCategories((prev) => prev.filter((c) => c.slug !== categorySlug));
+      showToast(data.message || 'Category deleted.', 'info');
+      return data;
+    } catch (error) {
+      showToast(error.message || 'Could not delete category.', 'error');
+      return null;
+    }
   };
 
   return (
@@ -520,23 +363,27 @@ export const EventProvider = ({ children }) => {
         events,
         categories,
         registrations,
-        bookmarks,
         notifications,
         attendees,
-        isBookmarked,
-        toggleBookmark,
+        analytics,
+        loading,
         getRegistration,
         registerForEvent,
+        reviewRegistration,
         cancelRegistration,
         createEvent,
         updateEvent,
         deleteEvent,
+        setRegistrationPayment,
         setAttendeeAttendance,
         markNotificationRead,
         markAllNotificationsRead,
         clearNotifications,
         addCategory,
+        updateCategory,
         deleteCategory,
+        refreshCategories: loadCategories,
+        refresh: loadAll,
       }}
     >
       {children}

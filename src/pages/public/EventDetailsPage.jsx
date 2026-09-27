@@ -28,13 +28,14 @@ import { useToast } from '../../context/ToastContext';
 
 export const EventDetailsPage = () => {
   const { id } = useParams();
-  const { events, isBookmarked, toggleBookmark, getRegistration, registerForEvent } = useEvents();
+  const { events, getRegistration, registerForEvent } = useEvents();
   const { currentUser, currentRole } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedReg, setSelectedReg] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const event = events.find((e) => e.id === id || e.slug === id);
 
@@ -58,9 +59,13 @@ export const EventDetailsPage = () => {
     );
   }
 
-  const bookmarked = isBookmarked(event.id);
   const registration = getRegistration(event.id);
   const isRegistered = !!registration;
+  const isPending = isRegistered && registration.status === 'Pending';
+  const isTicketReady =
+    isRegistered && registration.status === 'Approved' && registration.paymentStatus === 'paid';
+  const isApprovedUnpaid =
+    isRegistered && registration.status === 'Approved' && registration.paymentStatus !== 'paid';
   const isClosed = event.status === 'Registration Closed' || event.seatsLeft <= 0;
 
   // Related 3 events from same category
@@ -69,7 +74,7 @@ export const EventDetailsPage = () => {
     .slice(0, 3);
 
   const handleOpenRegisterModal = () => {
-    if (isRegistered) {
+    if (isTicketReady) {
       setSelectedReg(registration);
     } else {
       setSelectedReg(null);
@@ -77,10 +82,12 @@ export const EventDetailsPage = () => {
     setModalOpen(true);
   };
 
-  const handleConfirmCustomRegistration = (customPreferences) => {
-    const reg = registerForEvent(event.id, currentUser, customPreferences);
-    if (reg) {
-      setSelectedReg(reg);
+  const handleSubmitApplication = async (customPreferences) => {
+    setIsSubmitting(true);
+    try {
+      return await registerForEvent(event.id, currentUser, customPreferences);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -115,18 +122,6 @@ export const EventDetailsPage = () => {
             >
               <Share2 className="w-3.5 h-3.5 text-slate-500" />
               <span>Share</span>
-            </button>
-
-            <button
-              onClick={() => toggleBookmark(event.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${
-                bookmarked
-                  ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border-rose-200 dark:border-rose-800'
-                  : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <Bookmark className={`w-3.5 h-3.5 ${bookmarked ? 'fill-rose-500 text-rose-500' : 'text-slate-500'}`} />
-              <span>{bookmarked ? 'Saved' : 'Bookmark'}</span>
             </button>
           </div>
         </div>
@@ -418,7 +413,7 @@ export const EventDetailsPage = () => {
                 <div className="pt-2 flex gap-2">
                   <input
                     type="text"
-                    placeholder="Ask organizers or speakers a question..."
+                    placeholder="Ask a question about this event..."
                     className="flex-1 px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <button
@@ -432,10 +427,10 @@ export const EventDetailsPage = () => {
               </div>
             </div>
 
-            {/* Organizer Contact Card */}
+            {/* Hosted By Card */}
             <div className="space-y-4">
               <h2 className="text-xl font-bold font-display text-slate-900 dark:text-white">
-                Organizer Details
+                Hosted By
               </h2>
 
               <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-soft flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -527,11 +522,22 @@ export const EventDetailsPage = () => {
 
               {/* Main CTA */}
               <div className="space-y-2.5 pt-2">
-                {isRegistered ? (
-                  <div className="space-y-2">
+                {isPending ? (
+                  <>
+                    <div className="w-full py-3 px-4 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 font-bold text-xs text-center flex items-center justify-center gap-1.5">
+                      <Clock className="w-4 h-4" />
+                      <span>Your application is awaiting review</span>
+                    </div>
+                    <p className="text-[11px] text-center text-slate-400">
+                      Application ID: <span className="font-mono">{registration.registrationId}</span>. A seat
+                      is held until the admin approves or rejects it.
+                    </p>
+                  </>
+                ) : isTicketReady ? (
+                  <>
                     <div className="w-full py-3 px-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-bold text-xs text-center flex items-center justify-center gap-1.5">
                       <CheckCircle className="w-4 h-4" />
-                      <span>You are registered for this event</span>
+                      <span>Your ticket is ready</span>
                     </div>
                     <button
                       onClick={() => {
@@ -540,8 +546,16 @@ export const EventDetailsPage = () => {
                       }}
                       className="w-full py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
                     >
-                      <span>View & Download E-Pass</span>
+                      <span>View &amp; Download E-Pass</span>
                     </button>
+                  </>
+                ) : isApprovedUnpaid ? (
+                  <div className="w-full py-3 px-4 rounded-2xl bg-orange-50 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300 font-bold text-xs text-center flex items-center justify-center gap-1.5">
+                    <Tag className="w-4 h-4" />
+                    <span>
+                      Approved &mdash; pay Rs.{registration.amountPaid || 0} at the venue desk to get
+                      your pass
+                    </span>
                   </div>
                 ) : isClosed ? (
                   <button
@@ -556,12 +570,14 @@ export const EventDetailsPage = () => {
                     className="w-full py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-lg shadow-indigo-600/25 hover:shadow-indigo-600/40 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
                   >
                     <Sparkles className="w-4 h-4" />
-                    <span>Register Now</span>
+                    <span>{event.priceAmount > 0 ? 'Apply Now' : 'Register Now'}</span>
                   </button>
                 )}
 
                 <p className="text-[11px] text-center text-slate-400 pt-1">
-                  🔒 Instant confirmation with unique QR check-in pass.
+                  {event.priceAmount > 0
+                    ? 'Applications are reviewed by the admin. Your pass is issued after approval and payment.'
+                    : 'Free event - your pass is issued immediately.'}
                 </p>
               </div>
 
@@ -604,13 +620,14 @@ export const EventDetailsPage = () => {
         </div>
       )}
 
-      {/* Registration Confirmation Modal with QR & Download */}
+      {/* Application modal: preferences form, then the approval/ticket result */}
       <RegistrationModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         registration={selectedReg}
-        onConfirmRegistration={handleConfirmCustomRegistration}
+        onSubmitApplication={handleSubmitApplication}
         eventPrice={event.price}
+        isSubmitting={isSubmitting}
       />
 
     </div>

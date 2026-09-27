@@ -2,7 +2,14 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { Sparkles, User, Mail, Hash, BookOpen, Phone, Lock, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Sparkles, User, Mail, Hash, BookOpen, Phone, Lock, ArrowRight, CheckCircle2, Clock } from 'lucide-react';
+
+const Row = ({ label, value }) => (
+  <div className="flex items-center justify-between gap-4">
+    <span className="text-slate-400 font-semibold">{label}</span>
+    <span className="font-bold text-slate-900 dark:text-white text-right truncate">{value}</span>
+  </div>
+);
 
 export const RegisterPage = () => {
   const { register } = useAuth();
@@ -21,6 +28,8 @@ export const RegisterPage = () => {
   });
 
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(null);
 
   const departments = [
     'Computer Science & Engineering',
@@ -47,17 +56,72 @@ export const RegisterPage = () => {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) {
       showToast('Please fix the errors in the form.', 'error');
       return;
     }
 
-    const newUser = register(formData);
-    showToast(`Welcome to CampusConnect, ${newUser.name}!`, 'success');
-    navigate('/student/dashboard');
+    setSubmitting(true);
+    try {
+      const { confirmPassword, ...payload } = formData;
+      const result = await register(payload);
+      setSubmitted(result.user);
+      showToast('Account created. Waiting for admin approval.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Registration failed. Please try again.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  if (submitted) {
+    return (
+      <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-200/80 dark:border-slate-800 text-center space-y-5">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 flex items-center justify-center mx-auto">
+            <Clock className="w-7 h-7 text-amber-600 dark:text-amber-400" />
+          </div>
+
+          <div className="space-y-1.5">
+            <h1 className="text-2xl font-extrabold font-display text-slate-900 dark:text-white">
+              Awaiting Admin Approval
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Thanks, {submitted.name?.split(' ')[0]}! Your account has been created and is pending verification.
+            </p>
+          </div>
+
+          <div className="text-left bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 space-y-2 text-xs">
+            <Row label="Email" value={submitted.email} />
+            <Row label="Student ID" value={submitted.studentId} />
+            <Row label="Department" value={submitted.department} />
+            <Row label="Status" value="Pending" />
+          </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            You will receive an in-app notification once a campus admin approves your account. You can sign in after approval.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => navigate('/login')}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
+            >
+              Go to Login
+            </button>
+            <Link
+              to="/events"
+              className="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-all"
+            >
+              Browse Events
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center p-4 sm:p-6 lg:p-8">
@@ -237,11 +301,16 @@ export const RegisterPage = () => {
 
           <button
             type="submit"
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-4"
+            disabled={submitting}
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-4"
           >
-            <span>Create Campus Account</span>
-            <ArrowRight className="w-4 h-4" />
+            <span>{submitting ? 'Creating account...' : 'Create Campus Account'}</span>
+            {!submitting && <ArrowRight className="w-4 h-4" />}
           </button>
+
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center">
+            New accounts require admin approval before you can sign in.
+          </p>
         </form>
 
         <p className="text-center text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">

@@ -67,8 +67,6 @@ export const Navbar = ({ onOpenSearch }) => {
   }, [location.pathname]);
 
   const getDashboardPath = () => {
-    if (currentRole === 'student') return '/student/dashboard';
-    if (currentRole === 'organizer') return '/organizer/dashboard';
     if (currentRole === 'admin') return '/admin/dashboard';
     return '/student/dashboard';
   };
@@ -113,8 +111,6 @@ export const Navbar = ({ onOpenSearch }) => {
             <NavLink to="/" end className={navLinkClass}>Home</NavLink>
             <NavLink to="/events" className={navLinkClass}>Events</NavLink>
             <NavLink to="/calendar" className={navLinkClass}>Calendar</NavLink>
-            <NavLink to="/venues" className={navLinkClass}>Venues</NavLink>
-            <NavLink to="/sponsors" className={navLinkClass}>Sponsors</NavLink>
             <NavLink to="/about" className={navLinkClass}>About</NavLink>
             <NavLink to="/contact" className={navLinkClass}>Contact</NavLink>
           </nav>
@@ -288,35 +284,19 @@ export const Navbar = ({ onOpenSearch }) => {
                       {currentRole === 'student' && (
                         <>
                           <Link
-                            to="/student/registrations"
+                            to="/student/dashboard"
                             onClick={() => setUserDropdownOpen(false)}
                             className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                           >
                             <Calendar className="w-4 h-4 text-emerald-500" />
-                            My Registrations
-                          </Link>
-                          <Link
-                            to="/student/bookmarks"
-                            onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-                          >
-                            <Bookmark className="w-4 h-4 text-purple-500" />
-                            Saved Events
-                          </Link>
-                          <Link
-                            to="/student/profile"
-                            onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-                          >
-                            <User className="w-4 h-4 text-amber-500" />
-                            Profile Settings
+                            My Events
                           </Link>
                         </>
                       )}
 
-                      {currentRole === 'organizer' && (
+                      {currentRole === 'admin' && (
                         <Link
-                          to="/organizer/create-event"
+                          to="/admin/events/new"
                           onClick={() => setUserDropdownOpen(false)}
                           className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
@@ -327,7 +307,7 @@ export const Navbar = ({ onOpenSearch }) => {
 
                       {currentRole === 'admin' && (
                         <Link
-                          to="/admin/users"
+                          to="/admin/students"
                           onClick={() => setUserDropdownOpen(false)}
                           className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
@@ -399,8 +379,6 @@ export const Navbar = ({ onOpenSearch }) => {
             <NavLink to="/" end className={navLinkClass}>Home</NavLink>
             <NavLink to="/events" className={navLinkClass}>Discover Events</NavLink>
             <NavLink to="/calendar" className={navLinkClass}>Event Calendar</NavLink>
-            <NavLink to="/venues" className={navLinkClass}>Venues & Resources</NavLink>
-            <NavLink to="/sponsors" className={navLinkClass}>Sponsors & Expo</NavLink>
             <NavLink to="/about" className={navLinkClass}>About Campus</NavLink>
             <NavLink to="/contact" className={navLinkClass}>Contact & Help</NavLink>
           </nav>

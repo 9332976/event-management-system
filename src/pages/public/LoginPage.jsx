@@ -1,50 +1,62 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import {
   Sparkles,
   Lock,
   Mail,
-  GraduationCap,
-  UserCheck,
-  Shield,
   ArrowRight,
-  CheckCircle2
+  CheckCircle2,
+  AlertTriangle,
+  Clock
 } from 'lucide-react';
 
 export const LoginPage = () => {
-  const { login, switchRole } = useAuth();
+  const { login } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect');
 
-  const [email, setEmail] = useState('debjit.banerjee@campus.edu');
-  const [password, setPassword] = useState('password123');
-  const [role, setRole] = useState('student');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [blocked, setBlocked] = useState(null);
 
-  const handleRegularLogin = (e) => {
+  const redirectForRole = (role) => {
+    if (role === 'admin') return '/admin/dashboard';
+    return '/student/dashboard';
+  };
+
+  const handleRegularLogin = async (e) => {
     e.preventDefault();
-    if (!email) {
-      showToast('Please enter your college email', 'error');
+    if (submitting) return;
+
+    if (!email || !password) {
+      showToast('Please enter your email and password', 'error');
       return;
     }
 
-    login(email, password, role);
-    showToast(`Logged in successfully as ${role.toUpperCase()}!`, 'success');
-
-    if (role === 'organizer') navigate('/organizer/dashboard');
-    else if (role === 'admin') navigate('/admin/dashboard');
-    else navigate('/student/dashboard');
-  };
-
-  const handleDemoLogin = (targetRole) => {
-    switchRole(targetRole);
-    showToast(`Switched persona to ${targetRole.toUpperCase()}`, 'success');
-
-    if (targetRole === 'organizer') navigate('/organizer/dashboard');
-    else if (targetRole === 'admin') navigate('/admin/dashboard');
-    else navigate('/student/dashboard');
+    setSubmitting(true);
+    setBlocked(null);
+    try {
+      const user = await login(email, password);
+      showToast(`Logged in successfully as ${user.role.toUpperCase()}!`, 'success');
+      const fallback = redirectForRole(user.role);
+      const safeRedirect = redirectTo && redirectTo.startsWith('/') ? redirectTo : fallback;
+      navigate(safeRedirect, { replace: true });
+    } catch (error) {
+      const message = error.message || 'Login failed. Please try again.';
+      if (error.statusCode === 403) {
+        setBlocked({ message, isPending: /pending|approval/i.test(message) });
+      } else {
+        showToast(message, 'error');
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -101,68 +113,46 @@ export const LoginPage = () => {
               Welcome Back
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Sign in to your campus account or use a 1-click demo persona.
+              Sign in with the email address registered to your campus account.
             </p>
           </div>
 
-          {/* 1-Click Demo Persona Quick Switch Buttons */}
-          <div className="space-y-2.5">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              ⚡ Quick Fill Credentials
-            </p>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('debjit.banerjee@campus.edu');
-                  setPassword('student123');
-                  setRole('student');
-                  handleDemoLogin('student');
-                }}
-                className="p-3.5 rounded-2xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/60 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-left transition-all group"
-              >
-                <div className="flex items-center justify-between">
-                  <GraduationCap className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                  <span className="text-[10px] font-bold text-indigo-500">Student Portal</span>
-                </div>
-                <p className="text-xs font-bold text-slate-900 dark:text-white mt-1">
-                  Debjit Banerjee
+          {/* Blocked account notice (pending / deactivated) */}
+          {blocked && (
+            <div
+              className={`flex items-start gap-3 px-4 py-3.5 rounded-2xl border ${
+                blocked.isPending
+                  ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60'
+                  : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60'
+              }`}
+            >
+              {blocked.isPending ? (
+                <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+              )}
+              <div>
+                <p
+                  className={`text-xs font-bold ${
+                    blocked.isPending
+                      ? 'text-amber-900 dark:text-amber-200'
+                      : 'text-rose-900 dark:text-rose-200'
+                  }`}
+                >
+                  {blocked.isPending ? 'Account pending approval' : 'Account deactivated'}
                 </p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">debjit.banerjee@campus.edu</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('dean.studentaffairs@campus.edu');
-                  setPassword('admin123');
-                  setRole('admin');
-                  handleDemoLogin('admin');
-                }}
-                className="p-3.5 rounded-2xl border border-rose-200 dark:border-rose-800/80 bg-rose-50/60 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-left transition-all group"
-              >
-                <div className="flex items-center justify-between">
-                  <Shield className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                  <span className="text-[10px] font-bold text-rose-500">Admin Console</span>
-                </div>
-                <p className="text-xs font-bold text-slate-900 dark:text-white mt-1">
-                  Dr. Rajesh K. Verma (Dean)
+                <p
+                  className={`text-[11px] mt-0.5 ${
+                    blocked.isPending
+                      ? 'text-amber-700 dark:text-amber-300'
+                      : 'text-rose-700 dark:text-rose-300'
+                  }`}
+                >
+                  {blocked.message}
                 </p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">admin@campus.edu</p>
-              </button>
+              </div>
             </div>
-          </div>
-
-          {/* Divider */}
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
-            <span className="bg-white dark:bg-slate-900 px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider absolute">
-              Or Sign In With Email
-            </span>
-          </div>
-
-          {/* Regular Login Form */}
+          )}
           <form onSubmit={handleRegularLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -220,9 +210,10 @@ export const LoginPage = () => {
 
             <button
               type="submit"
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+              disabled={submitting}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
             >
-              <span>Login to CampusConnect</span>
+              <span>{submitting ? 'Signing in...' : 'Login to CampusConnect'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>

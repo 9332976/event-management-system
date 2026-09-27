@@ -82,8 +82,8 @@ export const CalendarPage = () => {
     });
   };
 
-  const handleRegisterClick = (event) => {
-    const reg = registerForEvent(event.id, currentUser);
+  const handleRegisterClick = async (event) => {
+    const reg = await registerForEvent(event.id, currentUser);
     if (reg) {
       setSelectedReg(reg);
       setModalOpen(true);

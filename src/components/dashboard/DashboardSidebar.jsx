@@ -4,80 +4,36 @@ import { useAuth } from '../../context/AuthContext';
 import {
   Sparkles,
   LayoutDashboard,
-  Calendar,
-  Bookmark,
-  Bell,
-  User,
+  Compass,
   PlusCircle,
   Users,
-  CheckSquare,
-  BarChart3,
-  Shield,
-  Layers,
-  FileText,
-  Settings,
   LogOut,
-  Compass,
   ChevronRight,
   ExternalLink,
   Home,
-  Award
+  Tags
 } from 'lucide-react';
 
 export const DashboardSidebar = ({ isOpen, onClose }) => {
   const { currentUser, currentRole, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Navigation Links based on Current Role
   const studentNavItems = [
-    { label: 'Public Home', path: '/', icon: Home },
-    { label: 'Dashboard', path: '/student/dashboard', icon: LayoutDashboard },
+    { label: 'My Events', path: '/student/dashboard', icon: LayoutDashboard },
     { label: 'Explore Events', path: '/events', icon: Compass },
-    { label: 'Event Calendar', path: '/student/calendar', icon: Calendar },
-    { label: 'My Registrations', path: '/student/registrations', icon: CheckSquare },
-    { label: 'Saved Events', path: '/student/bookmarks', icon: Bookmark },
-    { label: 'Notifications', path: '/student/notifications', icon: Bell },
-    { label: 'My Profile', path: '/student/profile', icon: User },
-  ];
-
-  const organizerNavItems = [
-    { label: 'Public Home', path: '/', icon: Home },
-    { label: 'Dashboard', path: '/organizer/dashboard', icon: LayoutDashboard },
-    { label: 'Event Calendar', path: '/organizer/calendar', icon: Calendar },
-    { label: 'My Events', path: '/organizer/events', icon: Layers },
-    { label: 'Create Event', path: '/organizer/create-event', icon: PlusCircle },
-    { label: 'Venues & Logistics', path: '/organizer/venues', icon: Layers },
-    { label: 'Sponsors & Expo', path: '/organizer/sponsors', icon: Award },
-    { label: 'Team Operations', path: '/organizer/collaborate', icon: CheckSquare },
-    { label: 'Participants', path: '/organizer/participants', icon: Users },
-    { label: 'Live Attendance', path: '/organizer/attendance', icon: CheckSquare },
   ];
 
   const adminNavItems = [
-    { label: 'Public Home', path: '/', icon: Home },
-    { label: 'Admin Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
-    { label: 'Host New Event', path: '/admin/create-event', icon: PlusCircle },
-    { label: 'Event Moderation', path: '/admin/events', icon: Layers },
-    { label: 'Master Calendar', path: '/admin/calendar', icon: Calendar },
-    { label: 'Campus Venues', path: '/admin/venues', icon: Layers },
-    { label: 'Sponsors & Expo', path: '/admin/sponsors', icon: Award },
-    { label: 'User Directory', path: '/admin/users', icon: Users },
-    { label: 'Registrations', path: '/admin/registrations', icon: CheckSquare },
-    { label: 'Categories', path: '/admin/categories', icon: Layers },
-    { label: 'Analytics Reports', path: '/admin/reports', icon: BarChart3 },
-    { label: 'System Settings', path: '/admin/settings', icon: Settings },
+    { label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+    { label: 'Students', path: '/admin/students', icon: Users },
+    { label: 'Events', path: '/admin/events', icon: PlusCircle },
+  { label: 'Categories', path: '/admin/categories', icon: Tags },
   ];
 
-  const navItems =
-    currentRole === 'admin'
-      ? adminNavItems
-      : currentRole === 'organizer'
-      ? organizerNavItems
-      : studentNavItems;
+  const navItems = currentRole === 'admin' ? adminNavItems : studentNavItems;
 
   const roleColors = {
     student: 'bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800',
-    organizer: 'bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800',
     admin: 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800',
   };
 
@@ -137,7 +93,7 @@ export const DashboardSidebar = ({ isOpen, onClose }) => {
                 <NavLink
                   key={item.path}
                   to={item.path}
-                  end={item.path === '/student/dashboard' || item.path === '/organizer/dashboard' || item.path === '/admin/dashboard'}
+                  end={item.path === '/student/dashboard' || item.path === '/admin/dashboard'}
                   onClick={() => {
                     if (window.innerWidth < 1024) onClose();
                   }}

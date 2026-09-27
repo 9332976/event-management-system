@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Send, HelpCircle, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, ChevronDown, } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
 export const ContactPage = () => {

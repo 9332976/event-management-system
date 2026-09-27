@@ -7,20 +7,15 @@ import {
   Users,
   Compass,
   ArrowRight,
-  ShieldCheck,
   CheckCircle2,
   Trophy,
   Star,
-  Zap,
-  Bookmark,
-  ChevronRight,
-  TrendingUp
+  Zap
 } from 'lucide-react';
 import { useEvents } from '../../context/EventContext';
 import { useAuth } from '../../context/AuthContext';
 import { EventCard } from '../../components/events/EventCard';
 import { RegistrationModal } from '../../components/common/RegistrationModal';
-import { mockAnalytics } from '../../data/mockAnalytics';
 import { getCategoryIcon } from '../../utils/formatters';
 
 const rotatingWords = [
@@ -54,8 +49,8 @@ export const HomePage = () => {
   // Upcoming events
   const upcomingEvents = events.slice(0, 4);
 
-  const handleRegisterClick = (event) => {
-    const reg = registerForEvent(event.id, currentUser);
+  const handleRegisterClick = async (event) => {
+    const reg = await registerForEvent(event.id, currentUser);
     if (reg) {
       setSelectedReg(reg);
       setModalOpen(true);
@@ -496,59 +491,6 @@ export const HomePage = () => {
           ))}
         </div>
       </section>
-
-      {/* 7. TESTIMONIALS */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        <div className="text-center max-w-2xl mx-auto">
-          <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-            Voices of Campus
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold font-display text-slate-900 dark:text-white mt-1">
-            Student & Organizer Testimonials
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Hear from students and club conveners who use CampusConnect daily.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {mockAnalytics.testimonials.map((t) => (
-            <div
-              key={t.id}
-              className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-soft flex flex-col justify-between space-y-4"
-            >
-              <div className="space-y-3">
-                {/* Rating stars */}
-                <div className="flex items-center gap-1 text-amber-400">
-                  {Array.from({ length: t.rating }).map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-amber-400" />
-                  ))}
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300 italic leading-relaxed">
-                  "{t.quote}"
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <img
-                  src={t.avatar}
-                  alt={t.name}
-                  className="w-10 h-10 rounded-full object-cover ring-2 ring-indigo-500/20"
-                />
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                    {t.name}
-                  </p>
-                  <p className="text-[10px] text-slate-400 truncate">
-                    {t.department}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* 8. CALL TO ACTION BANNER */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="relative rounded-3xl overflow-hidden bg-slate-900 text-white p-8 sm:p-12 lg:p-16 border border-slate-800 shadow-2xl">
@@ -557,7 +499,7 @@ export const HomePage = () => {
               Ready to create unforgettable campus experiences?
             </h2>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              Join thousands of students and club organizers. Host events, build your portfolio, and make campus life truly vibrant.
+              Join thousands of students across campus. Discover workshops, competitions, festivals, and seminars, and collect every ticket in one dashboard.
             </p>
             <div className="flex flex-wrap gap-4 pt-2">
               <Link
@@ -567,10 +509,10 @@ export const HomePage = () => {
                 Browse All Events
               </Link>
               <Link
-                to="/login"
+                to="/register"
                 className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm rounded-xl border border-slate-700 transition-all"
               >
-                Switch Demo Persona
+                Create Account
               </Link>
             </div>
           </div>

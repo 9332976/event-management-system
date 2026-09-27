@@ -2,8 +2,8 @@ import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useEvents } from '../../context/EventContext';
-import { Menu, Sun, Moon, Bell, Search, Plus, Home, Compass, Globe, ArrowLeft } from 'lucide-react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Menu, Sun, Moon, Bell, Search, Plus, Home, Globe } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 
 export const DashboardHeader = ({ onToggleSidebar, onOpenSearch }) => {
   const { currentUser, currentRole } = useAuth();
@@ -15,7 +15,7 @@ export const DashboardHeader = ({ onToggleSidebar, onOpenSearch }) => {
 
   return (
     <header className="sticky top-0 z-30 h-16 sm:h-20 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
-      
+
       {/* Left: Mobile Toggle, Return Home & Navigation */}
       <div className="flex items-center gap-3">
         <button
@@ -50,18 +50,6 @@ export const DashboardHeader = ({ onToggleSidebar, onOpenSearch }) => {
           >
             Calendar
           </Link>
-          <Link
-            to="/venues"
-            className="px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            Venues
-          </Link>
-          <Link
-            to="/sponsors"
-            className="px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            Sponsors
-          </Link>
         </nav>
 
         {/* Portal Indicator */}
@@ -75,7 +63,7 @@ export const DashboardHeader = ({ onToggleSidebar, onOpenSearch }) => {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2 sm:gap-3">
-        
+
         {/* Quick Search */}
         <button
           onClick={onOpenSearch}
@@ -99,10 +87,10 @@ export const DashboardHeader = ({ onToggleSidebar, onOpenSearch }) => {
           <span>Public Site</span>
         </Link>
 
-        {/* Organizer Shortcut to Create Event */}
-        {currentRole === 'organizer' && (
+        {/* Admin Shortcut to Create Event */}
+        {currentRole === 'admin' && (
           <Link
-            to="/organizer/create-event"
+            to="/admin/events/new"
             className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
           >
             <Plus className="w-4 h-4" />
@@ -124,8 +112,8 @@ export const DashboardHeader = ({ onToggleSidebar, onOpenSearch }) => {
         </button>
 
         {/* Notifications */}
-        <Link
-          to={currentRole === 'admin' ? '/admin/reports' : currentRole === 'organizer' ? '/organizer/events' : '/student/notifications'}
+        <button
+          onClick={() => navigate(currentRole === 'admin' ? '/admin/dashboard' : '/student/dashboard')}
           className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
           aria-label="Notifications"
         >
@@ -135,20 +123,16 @@ export const DashboardHeader = ({ onToggleSidebar, onOpenSearch }) => {
               {unreadCount}
             </span>
           )}
-        </Link>
+        </button>
 
         {/* Profile Avatar */}
-        <Link
-          to={currentRole === 'student' ? '/student/profile' : '#'}
-          className="flex items-center gap-2 pl-1"
-          title={currentUser?.name}
-        >
+        <div className="flex items-center gap-2 pl-1" title={currentUser?.name}>
           <img
             src={currentUser?.avatar}
             alt={currentUser?.name}
             className="w-8 h-8 rounded-xl object-cover ring-2 ring-indigo-500/30"
           />
-        </Link>
+        </div>
 
       </div>
     </header>

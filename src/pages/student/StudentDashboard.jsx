@@ -1,299 +1,369 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 import { useEvents } from '../../context/EventContext';
+import { useAuth } from '../../context/AuthContext';
 import {
-  Calendar,
-  Bookmark,
+  Ticket,
   CheckCircle2,
   Clock,
-  Sparkles,
-  ArrowRight,
+  IndianRupee,
+  Compass,
+  Calendar,
   MapPin,
-  QrCode,
+  XCircle,
   Bell,
-  ChevronRight,
-  TrendingUp,
-  Award
+  QrCode,
 } from 'lucide-react';
-import { StatsCard } from '../../components/common/StatsCard';
-import { RegistrationModal } from '../../components/common/RegistrationModal';
-import { StatusBadge } from '../../components/common/StatusBadge';
+import { DigitalTicketPass } from '../../components/common/DigitalTicketPass';
+import { Modal } from '../../components/common/Modal';
+import { EmptyState } from '../../components/common/EmptyState';
 
 export const StudentDashboard = () => {
+  const { registrations, events, notifications } = useEvents();
   const { currentUser } = useAuth();
-  const { events, registrations, bookmarks, notifications } = useEvents();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('all');
+  const [ticket, setTicket] = useState(null);
 
-  const [selectedReg, setSelectedReg] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  // A ticket is only usable once the admin approved the application AND payment is settled.
+  const isTicketReady = (r) => r.status === 'Approved' && r.paymentStatus === 'paid';
 
-  // Active student registrations
-  const activeRegistrations = registrations.filter((r) => r.status !== 'Cancelled');
-  const attendedCount = registrations.filter((r) => r.attendance === 'Present').length;
+  const approved = useMemo(() => registrations.filter((r) => r.status === 'Approved'), [registrations]);
+  const pending = useMemo(() => registrations.filter((r) => r.status === 'Pending'), [registrations]);
+  const rejected = useMemo(() => registrations.filter((r) => r.status === 'Rejected'), [registrations]);
+  const cancelled = useMemo(() => registrations.filter((r) => r.status === 'Cancelled'), [registrations]);
 
-  // Next upcoming registration spotlight
-  const nextRegistration = activeRegistrations[0];
+  const tickets = useMemo(() => approved.filter(isTicketReady), [approved]);
+  const unpaid = useMemo(() => approved.filter((r) => r.paymentStatus !== 'paid'), [approved]);
 
-  // Recommended events for student (not yet registered)
-  const registeredEventIds = new Set(activeRegistrations.map((r) => r.eventId));
-  const recommendedEvents = events
-    .filter((e) => !registeredEventIds.has(e.id))
-    .slice(0, 3);
+  const totalDue = useMemo(
+    () => unpaid.reduce((sum, r) => sum + (r.amountPaid || 0), 0),
+    [unpaid]
+  );
 
-  // Mock activity stream
-  const activities = [
-    { title: 'Registered for InnovateX Hackathon', time: 'Today, 10:30 AM', icon: CheckCircle2, color: 'text-emerald-500' },
-    { title: 'Saved Tarang Cultural Fest to Bookmarks', time: 'Yesterday, 04:15 PM', icon: Bookmark, color: 'text-purple-500' },
-    { title: 'Attendance Confirmed for AI Workshop', time: '3 days ago', icon: Award, color: 'text-indigo-500' },
+  const unread = useMemo(() => notifications.filter((n) => !n.read), [notifications]);
+
+  const upcoming = useMemo(() => {
+    const now = Date.now();
+    return approved
+      .filter((r) => r.eventDate && new Date(r.eventDate).getTime() >= now - 86400000)
+      .sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate));
+  }, [approved]);
+
+  const visible = useMemo(() => {
+    if (activeTab === 'upcoming') return upcoming;
+    if (activeTab === 'tickets') return tickets;
+    if (activeTab === 'pending') return pending;
+    if (activeTab === 'unpaid') return unpaid;
+    if (activeTab === 'rejected') return rejected;
+    if (activeTab === 'cancelled') return cancelled;
+    return approved;
+  }, [activeTab, upcoming, tickets, pending, unpaid, rejected, cancelled, approved]);
+
+  const TABS = [
+    { key: 'tickets', label: 'My Tickets', count: tickets.length },
+    { key: 'pending', label: 'Awaiting Approval', count: pending.length },
+    { key: 'unpaid', label: 'Payment Due', count: unpaid.length },
+    { key: 'rejected', label: 'Not Accepted', count: rejected.length },
+    { key: 'cancelled', label: 'Cancelled', count: cancelled.length },
   ];
 
   return (
-    <div className="space-y-8">
-      
-      {/* 1. Greeting Banner */}
-      <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-indigo-600/15 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-        <div className="space-y-2 max-w-xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Student Portal • {currentUser?.department || 'Engineering'}</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-display leading-tight">
-            Welcome back, {currentUser?.name || 'Debjit'} 👋
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-slate-900 dark:text-white">
+            My Events
           </h1>
-          <p className="text-xs sm:text-sm text-indigo-100 leading-relaxed">
-            You have <span className="font-bold underline">{activeRegistrations.length} active event registrations</span> this month. Keep your passes handy for fast check-in!
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            Welcome back, {currentUser?.name?.split(' ')[0]}. Here are all your event tickets and payments.
           </p>
         </div>
 
-        <div className="flex sm:flex-col gap-2 shrink-0">
-          <Link
-            to="/events"
-            className="px-5 py-2.5 bg-white text-indigo-600 hover:bg-indigo-50 font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
-          >
-            <span>Discover Events</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-          <Link
-            to="/student/registrations"
-            className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl border border-white/20 backdrop-blur-md transition-all text-center"
-          >
-            View E-Passes
-          </Link>
-        </div>
+        <Link
+          to="/events"
+          className="self-start sm:self-auto flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all"
+        >
+          <Compass className="w-4 h-4" />
+          <span>Explore Events</span>
+        </Link>
       </div>
 
-      {/* 2. Stats Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <StatsCard
-          title="Registered Events"
-          value={activeRegistrations.length}
-          icon={Calendar}
-          color="indigo"
-          subtitle="Active passes"
-        />
-        <StatsCard
-          title="Upcoming Schedule"
-          value={activeRegistrations.length > 0 ? 'Next in 4d' : 'None'}
-          icon={Clock}
-          color="purple"
-          subtitle="Event pipeline"
-        />
-        <StatsCard
-          title="Attended Events"
-          value={attendedCount}
-          icon={CheckCircle2}
-          color="emerald"
-          subtitle="Verified attendance"
-        />
-        <StatsCard
-          title="Saved Events"
-          value={bookmarks.length}
-          icon={Bookmark}
-          color="amber"
-          subtitle="In your wishlist"
-        />
+      {/* Summary tiles */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <SummaryTile icon={Ticket} label="My Tickets" value={tickets.length} tone="indigo" />
+        <SummaryTile icon={Clock} label="Awaiting Approval" value={pending.length} tone="amber" />
+        <SummaryTile icon={CheckCircle2} label="Approved" value={approved.length} tone="emerald" />
+        <SummaryTile icon={IndianRupee} label="Outstanding Dues" value={`Rs.${totalDue}`} tone="rose" />
       </div>
 
-      {/* 3. Next Upcoming Registration Spotlight */}
-      {nextRegistration && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-soft space-y-4">
-          <div className="flex items-center justify-between">
+      {/* Awaiting approval notice */}
+      {pending.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+          <div className="flex items-start gap-3">
+            <Clock className="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" />
             <div>
-              <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                Next Upcoming Event
-              </span>
-              <h2 className="text-xl font-bold font-display text-slate-900 dark:text-white mt-0.5">
-                {nextRegistration.eventTitle}
-              </h2>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">
+                {pending.length} {pending.length === 1 ? 'application is' : 'applications are'} awaiting
+                admin review
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Your seat is held for each pending application. The ticket is issued once the admin
+                approves it and confirms the payment.
+              </p>
             </div>
-            <StatusBadge status={nextRegistration.status} />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-            <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl">
-              <Calendar className="w-5 h-5 text-indigo-500 shrink-0" />
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase font-bold">Date & Time</p>
-                <p className="text-xs font-bold text-slate-900 dark:text-white">
-                  {nextRegistration.eventDate} • {nextRegistration.eventTime}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl">
-              <MapPin className="w-5 h-5 text-purple-500 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-[10px] text-slate-400 uppercase font-bold">Venue</p>
-                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                  {nextRegistration.venue}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl">
-              <QrCode className="w-5 h-5 text-emerald-500 shrink-0" />
-              <div>
-                <p className="text-[10px] text-slate-400 uppercase font-bold">Ticket Pass ID</p>
-                <p className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                  {nextRegistration.registrationId}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <button
-              onClick={() => {
-                setSelectedReg(nextRegistration);
-                setModalOpen(true);
-              }}
-              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2"
-            >
-              <QrCode className="w-4 h-4" />
-              <span>Show Digital QR Pass</span>
-            </button>
           </div>
         </div>
       )}
 
-      {/* 4. Grid: Recommended For You & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* Recommended Events (8-Cols) */}
-        <div className="lg:col-span-8 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold font-display text-slate-900 dark:text-white">
-              Recommended For You
+      {/* Pending payments alert */}
+      {unpaid.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-3xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50">
+          <div className="flex items-start gap-3">
+            <IndianRupee className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                You have {unpaid.length} approved {unpaid.length === 1 ? 'registration' : 'registrations'}{' '}
+                awaiting payment
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                Total outstanding: <strong>Rs.{totalDue}</strong>. Pay at the venue desk and the admin will mark your
+                ticket as paid.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notifications strip */}
+      {unread.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-soft p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Bell className="w-4 h-4 text-indigo-500" />
+            <h2 className="text-sm font-extrabold font-display text-slate-900 dark:text-white">
+              Recent Notifications
             </h2>
-            <Link
-              to="/events"
-              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
-            >
-              Browse all →
-            </Link>
+            <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold">
+              {unread.length}
+            </span>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {recommendedEvents.map((evt) => (
-              <div
-                key={evt.id}
-                className="bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800 shadow-soft hover:shadow-md transition-all flex flex-col justify-between"
+          <ul className="space-y-2">
+            {unread.slice(0, 4).map((n) => (
+              <li
+                key={n.id}
+                className="flex items-start gap-3 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60"
               >
-                <div className="relative h-32">
-                  <img
-                    src={evt.banner}
-                    alt={evt.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-md">
-                    {evt.categoryLabel}
-                  </span>
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-2 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">{n.title}</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">{n.message}</p>
                 </div>
-
-                <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2">
-                      {evt.title}
-                    </h4>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                      {evt.formattedDate}
-                    </p>
-                  </div>
-
-                  <Link
-                    to={`/events/${evt.id}`}
-                    className="w-full py-1.5 text-center text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 rounded-xl hover:bg-indigo-100 transition-colors block"
-                  >
-                    View Details
-                  </Link>
-                </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
+      )}
 
-        {/* Activity & Quick Notifications (4-Cols) */}
-        <div className="lg:col-span-4 space-y-6">
-          
-          {/* Recent Activity */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 shadow-soft space-y-4">
-            <h3 className="text-sm font-bold font-display text-slate-900 dark:text-white">
-              Recent Activity
-            </h3>
-
-            <div className="space-y-3">
-              {activities.map((act, idx) => {
-                const Icon = act.icon;
-                return (
-                  <div key={idx} className="flex items-start gap-3 text-xs">
-                    <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${act.color}`} />
-                    <div>
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">
-                        {act.title}
-                      </p>
-                      <p className="text-[10px] text-slate-400">{act.time}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Quick Notification Widget */}
-          <div className="bg-indigo-50/50 dark:bg-indigo-950/20 rounded-3xl p-6 border border-indigo-100 dark:border-indigo-900/40 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
-                <Bell className="w-3.5 h-3.5" />
-                Latest Alerts
-              </span>
-              <Link
-                to="/student/notifications"
-                className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
-              >
-                View all
-              </Link>
-            </div>
-
-            {notifications.slice(0, 2).map((n) => (
-              <div key={n.id} className="p-2.5 bg-white dark:bg-slate-900 rounded-xl text-xs space-y-0.5 border border-indigo-100 dark:border-indigo-900/40">
-                <p className="font-bold text-slate-900 dark:text-white truncate">{n.title}</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">{n.message}</p>
-              </div>
-            ))}
-          </div>
-
-        </div>
-
+      {/* Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
+              activeTab === t.key
+                ? 'bg-indigo-600 text-white shadow-sm font-bold'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            {t.label} ({t.count})
+          </button>
+        ))}
       </div>
 
-      {/* Digital QR Pass Modal */}
-      <RegistrationModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        registration={selectedReg}
-      />
+      {/* Ticket grid */}
+      {visible.length === 0 ? (
+        <EmptyState
+          icon={Ticket}
+          title={
+            activeTab === 'cancelled'
+              ? 'No cancelled events'
+              : activeTab === 'rejected'
+                ? 'Nothing was rejected'
+                : activeTab === 'pending'
+                  ? 'No applications awaiting review'
+                  : 'No events here yet'
+          }
+          description="Browse the campus events and apply for one to see your ticket here."
+          actionText="Explore Events"
+          onAction={() => navigate('/events')}
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+          {visible.map((reg) => {
+            const isPaid = reg.paymentStatus === 'paid';
+            const isCancelled = reg.status === 'Cancelled';
+            const isPending = reg.status === 'Pending';
+            const isRejected = reg.status === 'Rejected';
+            const ready = isTicketReady(reg);
+            const event = events.find((e) => e.id === reg.eventId);
 
+            const badge = isCancelled
+              ? 'bg-slate-700/90 text-slate-200 border-slate-500'
+              : isPending
+                ? 'bg-amber-500/90 text-white border-amber-400'
+                : isRejected
+                  ? 'bg-rose-600/90 text-white border-rose-400'
+                  : ready
+                    ? 'bg-emerald-500/90 text-white border-emerald-400'
+                    : 'bg-orange-500/90 text-white border-orange-400';
+            const badgeText = isCancelled
+              ? 'CANCELLED'
+              : isPending
+                ? 'AWAITING APPROVAL'
+                : isRejected
+                  ? 'NOT ACCEPTED'
+                  : ready
+                    ? 'TICKET READY'
+                    : 'PAYMENT DUE';
+
+            return (
+              <div
+                key={reg.registrationId}
+                className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-soft overflow-hidden flex flex-col"
+              >
+                {/* Banner */}
+                <div className="relative h-32 overflow-hidden bg-slate-100 dark:bg-slate-800">
+                  <img
+                    src={reg.banner || event?.banner}
+                    alt={reg.eventTitle}
+                    className={`w-full h-full object-cover ${isCancelled ? 'grayscale opacity-50' : ''}`}
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent" />
+                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border backdrop-blur-md ${badge}`}
+                    >
+                      {badgeText}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-black/50 text-white backdrop-blur-md border border-white/20">
+                      {reg.registrationId}
+                    </span>
+                  </div>
+                  <h3 className="absolute bottom-3 left-4 right-4 text-sm font-bold font-display text-white line-clamp-2">
+                    {reg.eventTitle}
+                  </h3>
+                </div>
+
+                {/* Details */}
+                <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
+                  {isRejected && reg.rejectReason && (
+                    <p className="text-[11px] text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-xl p-2.5">
+                      <strong>Reason:</strong> {reg.rejectReason}
+                    </p>
+                  )}
+
+                  {isPending && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-2.5">
+                      Seat held while the admin reviews your application. Payment is collected after
+                      approval.
+                    </p>
+                  )}
+
+                  <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>
+                        {event?.formattedDate || new Date(reg.eventDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>{reg.eventTime}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">{reg.venue}</span>
+                    </div>
+                    {!isPending && !isCancelled && (
+                      <div className="flex items-center gap-2">
+                        <IndianRupee className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className={isPaid ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-rose-600 dark:text-rose-400 font-semibold'}>
+                          {isPaid ? `Paid Rs.${reg.amountPaid || 0}` : `Due Rs.${reg.amountPaid || 0}`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {isRejected ? (
+                    <button
+                      onClick={() => navigate('/events')}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-colors"
+                    >
+                      <Compass className="w-4 h-4" />
+                      <span>Browse &amp; Apply Again</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setTicket(reg)}
+                      disabled={!ready}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {isCancelled ? (
+                        <>
+                          <XCircle className="w-4 h-4" />
+                          <span>Ticket Cancelled</span>
+                        </>
+                      ) : isPending ? (
+                        <>
+                          <Clock className="w-4 h-4" />
+                          <span>Awaiting Admin Review</span>
+                        </>
+                      ) : !ready ? (
+                        <>
+                          <IndianRupee className="w-4 h-4" />
+                          <span>Complete Payment for Ticket</span>
+                        </>
+                      ) : (
+                        <>
+                          <QrCode className="w-4 h-4" />
+                          <span>View Ticket</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Ticket modal */}
+      <Modal isOpen={!!ticket} onClose={() => setTicket(null)} title="Your Event Ticket" size="lg">
+        {ticket && <DigitalTicketPass registration={ticket} />}
+      </Modal>
     </div>
   );
 };
+
+const TONES = {
+  indigo: 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400',
+  emerald: 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400',
+  amber: 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400',
+  rose: 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400',
+};
+
+const SummaryTile = ({ icon: Icon, label, value, tone }) => (
+  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-soft p-4 flex items-center gap-3">
+    <div className={`p-2.5 rounded-xl ${TONES[tone]}`}>
+      <Icon className="w-4 h-4" />
+    </div>
+    <div className="min-w-0">
+      <p className="text-lg font-extrabold font-display text-slate-900 dark:text-white leading-tight">{value}</p>
+      <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 truncate">{label}</p>
+    </div>
+  </div>
+);

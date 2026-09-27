@@ -1,18 +1,27 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calendar, Clock, MapPin, Bookmark, Users, ArrowRight, CheckCircle, Tag } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, ArrowRight, CheckCircle, Tag } from 'lucide-react';
 import { useEvents } from '../../context/EventContext';
 import { useAuth } from '../../context/AuthContext';
 import { getCategoryBadgeStyle, getStatusBadgeStyle } from '../../utils/formatters';
 
 export const EventCard = ({ event, onRegisterClick }) => {
-  const { isBookmarked, toggleBookmark, getRegistration } = useEvents();
+  const { getRegistration, registrations } = useEvents();
   const { currentUser, currentRole } = useAuth();
   const navigate = useNavigate();
 
-  const bookmarked = isBookmarked(event.id);
   const registration = getRegistration(event.id);
   const isRegistered = !!registration;
+  const isPending = isRegistered && registration.status === 'Pending';
+  const isApprovedPaid =
+    isRegistered && registration.status === 'Approved' && registration.paymentStatus === 'paid';
+  const isApprovedUnpaid =
+    isRegistered && registration.status === 'Approved' && registration.paymentStatus !== 'paid';
+  // A past rejection must not hide the Apply button, but we surface it as a hint.
+  const lastHistory = registrations
+    .filter((r) => r.eventId === event.id)
+    .sort((a, b) => new Date(b.appliedAt || b.createdAt) - new Date(a.appliedAt || a.createdAt))[0];
+  const wasRejected = !isRegistered && lastHistory?.status === 'Rejected';
   const isClosed = event.status === 'Registration Closed' || event.seatsLeft <= 0;
 
   const occupancyPercent = Math.min(
@@ -41,23 +50,12 @@ export const EventCard = ({ event, onRegisterClick }) => {
             {event.categoryLabel}
           </span>
 
-          {/* Bookmark Button */}
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              toggleBookmark(event.id);
-            }}
-            className={`p-2 rounded-full backdrop-blur-md shadow-sm transition-transform active:scale-90 ${
-              bookmarked
-                ? 'bg-rose-500 text-white shadow-rose-500/30'
-                : 'bg-white/80 dark:bg-slate-900/80 text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-900'
-            }`}
-            aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark event'}
-            title={bookmarked ? 'Saved' : 'Save event'}
-          >
-            <Bookmark className={`w-4 h-4 ${bookmarked ? 'fill-white' : ''}`} />
-          </button>
+          {/* Payment badge */}
+          {event.priceAmount > 0 ? (
+            <span className="p-2 rounded-full bg-amber-500/90 text-white shadow-sm backdrop-blur-md" title="Paid event">
+              <Tag className="w-4 h-4" />
+            </span>
+          ) : null}
         </div>
 
         {/* Bottom Banner Info (Price / Mode) */}
@@ -66,7 +64,7 @@ export const EventCard = ({ event, onRegisterClick }) => {
             {event.type}
           </span>
           <span className="font-bold text-emerald-400 bg-black/40 backdrop-blur-sm px-2.5 py-0.5 rounded-lg border border-white/20">
-            {event.price}
+            {event.priceAmount > 0 ? `Rs.${event.priceAmount}` : 'Free'}
           </span>
         </div>
       </div>
@@ -95,7 +93,7 @@ export const EventCard = ({ event, onRegisterClick }) => {
             </h3>
           </Link>
 
-          {/* Venue & Organizer */}
+          {/* Venue & Department */}
           <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
             <div className="flex items-center gap-1.5 truncate">
               <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -103,7 +101,7 @@ export const EventCard = ({ event, onRegisterClick }) => {
             </div>
             <div className="flex items-center gap-1.5 truncate">
               <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="truncate">By {event.organizer?.club || event.organizer?.name}</span>
+              <span className="truncate">{event.department}</span>
             </div>
           </div>
         </div>
@@ -142,13 +140,31 @@ export const EventCard = ({ event, onRegisterClick }) => {
               Details
             </Link>
 
-            {isRegistered ? (
+            {isPending ? (
+              <button
+                disabled
+                title="Your application is awaiting admin review"
+                className="flex-1 py-2 px-3 text-center text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center justify-center gap-1 cursor-wait"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Applied</span>
+              </button>
+            ) : isApprovedPaid ? (
               <Link
-                to="/student/registrations"
+                to="/student/dashboard"
                 className="flex-1 py-2 px-3 text-center text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center justify-center gap-1"
               >
                 <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Registered</span>
+                <span>View Ticket</span>
+              </Link>
+            ) : isApprovedUnpaid ? (
+              <Link
+                to="/student/dashboard"
+                title="Approved - complete your payment to receive the ticket"
+                className="flex-1 py-2 px-3 text-center text-xs font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 rounded-xl flex items-center justify-center gap-1"
+              >
+                <Tag className="w-3.5 h-3.5" />
+                <span>Payment Due</span>
               </Link>
             ) : isClosed ? (
               <button
@@ -168,7 +184,7 @@ export const EventCard = ({ event, onRegisterClick }) => {
                 }}
                 className="flex-1 py-2 px-3 text-center text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm hover:shadow rounded-xl transition-all flex items-center justify-center gap-1"
               >
-                <span>Register</span>
+                <span>{wasRejected ? 'Apply Again' : 'Register'}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Search, Filter, X, RotateCcw, Calendar, Check, Tag } from 'lucide-react';
-import { mockCategories } from '../../data/mockCategories';
+import { useEvents } from '../../context/EventContext';
 
 export const EventFilterPanel = ({
   filters,
@@ -8,9 +8,11 @@ export const EventFilterPanel = ({
   onResetFilters,
   totalResults = 0,
 }) => {
+  const { categories: liveCategories } = useEvents();
+
   const categories = [
     { slug: 'all', name: 'All Categories' },
-    ...mockCategories
+    ...(liveCategories || []).map((c) => ({ slug: c.slug, name: c.name }))
   ];
 
   const dateOptions = [
